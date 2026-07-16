@@ -1,15 +1,22 @@
+import 'dotenv/config'; // 1. Crucial: This loads your DATABASE_URL from the .env file!
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaMariaDb } from '@prisma/adapter-mariadb'; // 2. Import the Prisma 7 MySQL driver adapter
+import { PrismaClient } from './generated/prisma/index.js'; // 3. Import your locally generated client
 import { validateApprovalRequest } from './requestValidator.js';
 
 const app = express();
-const prisma = new PrismaClient(); // 1. This boots up your link to MySQL Workbench!
+
+// 4. Convert mysql:// connection string to mariadb:// for the driver adapter compatibility
+const connectionString = process.env.DATABASE_URL.replace('mysql://', 'mariadb://');
+const adapter = new PrismaMariaDb(connectionString);
+
+// 5. Build your client with the adapter passed directly inside the constructor options
+const prisma = new PrismaClient({ adapter });
 
 app.use(express.json());
 
 // The main route where doctors submit claims
 app.post('/api/requests', async (req, res) => {
-  // 2. Validate the incoming data through our Zod guard
   const validation = validateApprovalRequest(req.body);
 
   if (!validation.success) {
@@ -22,13 +29,11 @@ app.post('/api/requests', async (req, res) => {
   const validData = validation.data;
 
   try {
-    // 3. Prepare the data payload for Prisma
     const queryPayload = {
       type: validData.type,
       notes: validData.notes,
     };
 
-    // 4. If it's a Pre-Auth or Prescription, seamlessly pack the nested sub-tables
     if (validData.type === 'PRE_AUTH') {
       queryPayload.preAuthDetails = {
         create: validData.details
@@ -39,7 +44,6 @@ app.post('/api/requests', async (req, res) => {
       };
     }
 
-    // 5. Fire the query! Prisma automatically converts this JavaScript into SQL statements
     const newRequest = await prisma.approvalRequest.create({
       data: queryPayload,
       include: {
@@ -48,7 +52,6 @@ app.post('/api/requests', async (req, res) => {
       }
     });
 
-    // 6. Return the fully saved entry back to the provider
     res.status(201).json({ 
       message: "Success! Record securely saved to MySQL database.", 
       data: newRequest 
