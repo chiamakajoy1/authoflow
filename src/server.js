@@ -4,6 +4,7 @@ const app = require("./app");
 const sequelize = require("./config/database");
 
 require("./models/user");
+require("./models/Hospital");
 
 const PORT = process.env.PORT || 5000;
 
