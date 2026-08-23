@@ -4,7 +4,7 @@ const User = require("../models/User");
 
 const register = async (req, res) => {
   try {
-    const { fullName, email, password, role } = req.body;
+    const { fullName, email, password } = req.body;
 
     // 1. Check required fields
     if (!fullName || !email || !password) {
@@ -30,11 +30,13 @@ const register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // 4. Create user
+    // Role is never taken from the request body - ADMIN/HOSPITAL/INSURANCE
+    // accounts are provisioned separately by an existing admin.
     const user = await User.create({
       fullName,
       email,
       password: hashedPassword,
-      role: role || "HOSPITAL",
+      role: "HOSPITAL",
     });
 
     // 5. Don't return the password
@@ -100,6 +102,7 @@ const login = async (req, res) => {
       {
         id: user.id,
         role: user.role,
+        hospitalId: user.hospitalId,
       },
       process.env.JWT_SECRET,
       {
@@ -128,7 +131,63 @@ const login = async (req, res) => {
     });
   }
 };
+const createInsuranceUser = async (req, res) => {
+  try {
+    const { fullName, email, password } = req.body;
+
+    // Validate input
+    if (!fullName || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Full name, email and password are required",
+      });
+    }
+
+    // Check existing user
+    const existingUser = await User.findOne({
+      where: { email },
+    });
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "A user with this email already exists",
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create insurance user
+    const user = await User.create({
+      fullName,
+      email,
+      password: hashedPassword,
+      role: "INSURANCE",
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Insurance user created successfully",
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error("Create insurance user error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+};
+
 module.exports = {
   register,
-   login,
+  login,
+  createInsuranceUser,
 };

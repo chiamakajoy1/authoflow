@@ -3,7 +3,8 @@ const express = require("express");
 const {
   register,
   login,
-} = require("../controllers/auth.controller");
+  createInsuranceUser,
+} = require("../controllers/authController");
 
 const authenticate = require("../middleware/auth.middleware");
 const authorize = require("../middleware/role.middleware");
@@ -13,6 +14,13 @@ const router = express.Router();
 router.post("/register", register);
 
 router.post("/login", login);
+
+router.post(
+  "/insurance-users",
+  authenticate,
+  authorize("ADMIN"),
+  createInsuranceUser
+);
 
 router.get("/me", authenticate, (req, res) => {
   res.status(200).json({
